@@ -1,6 +1,6 @@
 /* Mini Piper implementation in Javascript. */
 
-import EspeakModule from "./espeakng.worker.js";
+import EspeakModule from "https://cdn.jsdelivr.net/gh/khushwant18/piper-test@main/resources/espeakng.worker.js";
 
 const AUDIO_OUTPUT_SYNCHRONOUS = 2;
 const espeakCHARS_AUTO = 0;
