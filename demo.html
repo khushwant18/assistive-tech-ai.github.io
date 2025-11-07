@@ -1,42 +1,167 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>Piper TTS Demo Simple</title>
-<style>
-  body {
-    margin: auto;
-    max-width: 600px;
-    font-family: sans-serif;
-  }
-  textarea {
-    width: 100%;
-    height: 5em;
-  }
-  button {
-    font-size: 1.2em;
-    margin-top: 1em;
-    padding: 0.5em 1em;
-  }
-  #status {
-    margin-top: 1em;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Piper TTS Demo - Local HTTP Server</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 2em auto;
+      padding: 0 1em;
+    }
+    label, select, input, button {
+      margin: 0.5em 0;
+      display: block;
+      width: 100%;
+    }
+    #status {
+      margin-top: 1em;
+      font-weight: bold;
+    }
+    audio {
+      margin-top: 1em;
+      width: 100%;
+      outline: none;
+    }
+  </style>
 </head>
 <body>
+  <h1>Piper TTS Demo</h1>
+  <textarea id="textInput" rows="4" placeholder="Type text here...">Hello from Piper TTS loaded locally!</textarea>
+  
+  <label for="speaker">Speaker:</label>
+  <select id="speaker">
+    <option value="0">default</option>
+  </select>
+  
+  <label for="lengthScale">Length Scale (default 1.0):</label>
+  <input type="number" step="0.1" min="0.5" max="2" value="1" id="lengthScale" />
+  
+  <label for="noiseScale">Noise Scale (default 0.667):</label>
+  <input type="number" step="0.01" min="0" max="1" value="0.667" id="noiseScale" />
+  
+  <label for="noiseWScale">Noise W Scale (default 0.8):</label>
+  <input type="number" step="0.01" min="0" max="1" value="0.8" id="noiseWScale" />
+  
+  <button id="buttonSpeak" disabled>Loading...</button>
+  <div id="status">Loading model...</div>
+  <audio id="audioTTS" controls></audio>
+  
+  <script>
+    // Assuming your HTTP server root has a folder "resources" with these files inside
+    const BASE_URL = './resources/';
 
-<h1>Piper TTS Demo Simple</h1>
+    async function loadOrt() {
+      return new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js';
+        s.onload = resolve;
+        document.head.appendChild(s);
+      });
+    }
 
-<textarea id="textInput" aria-label="Text to speak">Hello world, this is Piper TTS demo.</textarea>
-<br />
-<button id="buttonSpeak" disabled>Speak</button>
+    async function main() {
+      await loadOrt();
 
-<br />
-<audio id="audioTTS" controls></audio>
-<div id="status" role="status" aria-live="polite">Loading model...</div>
+      // Dynamically import piper.js from local resources folder
+      // Make sure piper.js and espeakng.worker.js + .data are in resources/
+      const piper = await import(BASE_URL + 'piper.js');
 
-<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
-<script type="module" src="resources/demo.js"></script>
+      const status = document.getElementById('status');
+      const textInput = document.getElementById('textInput');
+      const buttonSpeak = document.getElementById('buttonSpeak');
+      const audioTTS = document.getElementById('audioTTS');
+      const speakerSelect = document.getElementById('speaker');
+      const inputLengthScale = document.getElementById('lengthScale');
+      const inputNoiseScale = document.getElementById('noiseScale');
+      const inputNoiseWScale = document.getElementById('noiseWScale');
 
+      // Model and config paths relative to the server root
+      const voiceModelUrl = BASE_URL + 'en_US-hfc_female-medium.onnx';
+      const voiceConfigUrl = BASE_URL + 'en_US-hfc_female-medium.onnx.json';
+
+      status.textContent = 'Loading voice model...';
+      await piper.setVoice(voiceModelUrl, voiceConfigUrl);
+
+      // Populate speakers if multi-speaker config exists
+      try {
+        const response = await fetch(voiceConfigUrl);
+        const voiceConfig = await response.json();
+
+        // Clear existing options
+        while (speakerSelect.options.length > 0) {
+          speakerSelect.remove(0);
+        }
+
+        if (voiceConfig.num_speakers <= 1) {
+          let option = document.createElement('option');
+          option.text = 'default';
+          option.value = '0';
+          speakerSelect.add(option);
+        } else {
+          const speakerIdMap = voiceConfig.speaker_id_map;
+          const sortedSpeakers = Object.keys(speakerIdMap).sort(
+            (a, b) => speakerIdMap[a] - speakerIdMap[b]
+          );
+          sortedSpeakers.forEach((speaker, i) => {
+            let option = document.createElement('option');
+            option.text = speaker + ' (' + i + ')';
+            option.value = i;
+            speakerSelect.add(option);
+          });
+          speakerSelect.selectedIndex = 0;
+        }
+      } catch (e) {
+        console.warn('Failed to load voice config for speakers:', e);
+      }
+
+      status.textContent = 'Ready';
+      buttonSpeak.disabled = false;
+      textInput.disabled = false;
+      buttonSpeak.textContent = 'Speak';
+
+      buttonSpeak.addEventListener('click', async () => {
+        const text = textInput.value.trim();
+        if (!text) {
+          alert('Please enter some text to synthesize.');
+          return;
+        }
+
+        buttonSpeak.disabled = true;
+        status.textContent = 'Synthesizing audio...';
+
+        try {
+          const speakerId = parseInt(speakerSelect.value) || 0;
+          const lengthScale = parseFloat(inputLengthScale.value) || undefined;
+          const noiseScale = parseFloat(inputNoiseScale.value) || undefined;
+          const noiseWScale = parseFloat(inputNoiseWScale.value) || undefined;
+
+          const wavBlob = await piper.textToWavAudio(
+            text,
+            speakerId,
+            noiseScale,
+            lengthScale,
+            noiseWScale
+          );
+
+          if (audioTTS.src) {
+            URL.revokeObjectURL(audioTTS.src);
+          }
+          audioTTS.src = URL.createObjectURL(wavBlob);
+          audioTTS.play();
+
+          status.textContent = 'Ready';
+        } catch (err) {
+          console.error(err);
+          status.textContent = 'Error during synthesis: ' + err.message;
+        }
+        buttonSpeak.disabled = false;
+      });
+    }
+
+    main().catch(console.error);
+  </script>
 </body>
 </html>
