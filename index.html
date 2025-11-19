@@ -726,8 +726,10 @@ async function playNextFeedback() {
   
   try {
     const wavBlob = await piperTTS.textToWavAudio(message, 0);
-    const feedbackAudio = new Audio(URL.createObjectURL(wavBlob));
+    const audioURL = URL.createObjectURL(wavBlob); 
+    const feedbackAudio = new Audio(URL.createObjectURL(audioURL));
     feedbackAudio.playbackRate = parseFloat(speechRateSlider.value);
+    
     
     feedbackAudio.onended = () => {
       URL.revokeObjectURL(audioURL); 
@@ -1075,6 +1077,10 @@ async function processText(text) {
       await waitForFeedback();
       
       const wavBlob = await piperTTS.textToWavAudio(noResultMessage, 0);
+      const audioURL = URL.createObjectURL(wavBlob);  // ← ADD THIS LINE HERE
+      audioEl.src = audioURL;
+
+
       audioEl.src = URL.createObjectURL(wavBlob);
       audioEl.style.display = 'block';
       audioEl.playbackRate = parseFloat(speechRateSlider.value);
@@ -1187,7 +1193,8 @@ function repeatLastResponse() {
     
     setTimeout(async () => {
       const wavBlob = await piperTTS.textToWavAudio(currentResponse, 0);
-      audioEl.src = URL.createObjectURL(wavBlob);
+      const audioURL = URL.createObjectURL(wavBlob);  // ← ADD THIS LINE HERE
+      audioEl.src = audioURL;
       audioEl.playbackRate = parseFloat(speechRateSlider.value);
 
       const oldOnended = audioEl.onended;
@@ -1279,7 +1286,8 @@ async function playAudioQueue() {
   isPlayingQueue = true;
   const audioItem = audioQueue.shift();
   
-  audioEl.src = URL.createObjectURL(audioItem.blob);
+  const audioURL = URL.createObjectURL(audioItem.blob);  // ← ADD THIS LINE HERE
+  audioEl.src = audioURL;
   audioEl.playbackRate = parseFloat(speechRateSlider.value);
   
   audioEl.onended = () => {
