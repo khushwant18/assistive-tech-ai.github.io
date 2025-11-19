@@ -828,12 +828,24 @@ async function initModels() {
     announceStatus('Loading text to speech system...');
     
     await loadOrt();
-    piperTTS = await import('https://cdn.jsdelivr.net/gh/khushwant18/piper-test@main/resources/piper.js');
+    const piperModule = await import('https://cdn.jsdelivr.net/gh/khushwant18/piper-test.github.io@main/resources/piper.js');
+    piperTTS = piperModule; // Store the module
     
     const MODEL_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx';
     const CONFIG_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx.json';
     
+    console.log('Setting Piper voice...');
     await piperTTS.setVoice(MODEL_URL, CONFIG_URL);
+    console.log('Piper voice ready!');
+    
+    // TEST TTS BEFORE ENABLING INTERFACE
+    console.log('Testing TTS...');
+    const testBlob = await piperTTS.textToWavAudio('System ready', 0);
+    console.log('Test blob:', testBlob);
+    
+    if (!testBlob || !(testBlob instanceof Blob)) {
+      throw new Error('TTS test failed - invalid blob');
+    }
 
     announceStatus('System ready. Press Space to start voice input or type your question.', true);
     voiceButton.disabled = false;
@@ -842,7 +854,7 @@ async function initModels() {
     
   } catch (err) {
     console.error('Model loading error:', err);
-    announceStatus('Error loading models. Please refresh the page.', true);
+    announceStatus('Error loading models. Please refresh the page.');
   }
 }
 
