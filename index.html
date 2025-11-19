@@ -852,9 +852,9 @@ async function initModels() {
     await loadOrt();
     const piperModule = await import('https://cdn.jsdelivr.net/gh/khushwant18/piper-test@main/resources/piper.js');
     
-    // Check if it's a default export or named export
-    console.log('Piper module:', piperModule);
-    piperTTS = piperModule.default || piperModule; // ← FIX: Try default export first
+    // Check module structure without logging the whole object
+    console.log('Piper module keys:', Object.keys(piperModule));
+    piperTTS = piperModule.default || piperModule;
     
     const MODEL_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx';
     const CONFIG_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx.json';
@@ -863,7 +863,7 @@ async function initModels() {
     await piperTTS.setVoice(MODEL_URL, CONFIG_URL);
     console.log('Piper voice ready!');
     
-    // TEST TTS BEFORE ENABLING INTERFACE
+    // TEST TTS
     console.log('Testing TTS...');
     const testBlob = await piperTTS.textToWavAudio('System ready', 0);
     console.log('Test blob:', testBlob);
@@ -872,8 +872,7 @@ async function initModels() {
       throw new Error('TTS test failed - invalid blob');
     }
 
-    // Don't speak during initialization to avoid the race condition
-    announceStatus('System ready. Press Space to start voice input or type your question.', false); // ← CHANGE: false = don't speak
+    announceStatus('System ready. Press Space to start voice input or type your question.', false);
     voiceButton.disabled = false;
     textInput.disabled = false;
     textSubmit.disabled = false;
