@@ -833,7 +833,7 @@ async function initModels() {
     
     llmPipeline = await pipeline('text-generation', 'onnx-community/LFM2-350M-ONNX', {
       dtype: 'q4f16',
-      device: 'wasm'
+      device: 'webgpu'
     });
 
     announceStatus('Loading book index...');
