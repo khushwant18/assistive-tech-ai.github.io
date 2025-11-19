@@ -850,27 +850,12 @@ async function initModels() {
     announceStatus('Loading text to speech system...');
     
     await loadOrt();
-    const piperModule = await import('https://cdn.jsdelivr.net/gh/khushwant18/piper-test@main/resources/piper.js');
-    
-    // Check module structure without logging the whole object
-    console.log('Piper module keys:', Object.keys(piperModule));
-    piperTTS = piperModule.default || piperModule;
+    piperTTS = await import('https://cdn.jsdelivr.net/gh/khushwant18/piper-test@main/resources/piper.js');
     
     const MODEL_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx';
     const CONFIG_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx.json';
     
-    console.log('Setting Piper voice...');
     await piperTTS.setVoice(MODEL_URL, CONFIG_URL);
-    console.log('Piper voice ready!');
-    
-    // TEST TTS
-    console.log('Testing TTS...');
-    const testBlob = await piperTTS.textToWavAudio('System ready', 0);
-    console.log('Test blob:', testBlob);
-    
-    if (!testBlob || !(testBlob instanceof Blob)) {
-      throw new Error('TTS test failed - invalid blob');
-    }
 
     announceStatus('System ready. Press Space to start voice input or type your question.', false);
     voiceButton.disabled = false;
