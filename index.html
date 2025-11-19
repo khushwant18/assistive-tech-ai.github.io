@@ -725,18 +725,39 @@ async function playNextFeedback() {
   const message = voiceFeedbackQueue.shift();
   
   try {
-    const wavBlob = await piperTTS.textToWavAudio(message, 0);
-    const audioURL = URL.createObjectURL(wavBlob); 
-    const feedbackAudio = new Audio(URL.createObjectURL(audioURL));
-    feedbackAudio.playbackRate = parseFloat(speechRateSlider.value);
+    console.log('🔊 Generating speech for:', message);
+    console.log('piperTTS object:', piperTTS);
+    console.log('piperTTS.textToWavAudio:', piperTTS?.textToWavAudio);
     
+    // Check if piperTTS is properly initialized
+    if (!piperTTS || typeof piperTTS.textToWavAudio !== 'function') {
+      console.error('PiperTTS not properly initialized');
+      playNextFeedback();
+      return;
+    }
+    
+    const wavBlob = await piperTTS.textToWavAudio(message, 0);
+    
+    // Validate the blob
+    console.log('Blob received:', wavBlob, 'Type:', typeof wavBlob, 'instanceof Blob:', wavBlob instanceof Blob);
+    
+    if (!wavBlob || !(wavBlob instanceof Blob)) {
+      console.error('Invalid blob received from TTS:', wavBlob);
+      playNextFeedback();
+      return;
+    }
+    
+    const audioURL = URL.createObjectURL(wavBlob);
+    const feedbackAudio = new Audio(audioURL);
+    feedbackAudio.playbackRate = parseFloat(speechRateSlider.value);
     
     feedbackAudio.onended = () => {
       URL.revokeObjectURL(audioURL); 
       playNextFeedback();
     };
 
-    feedbackAudio.onerror = () => {  // ← ADD THIS: Handle errors
+    feedbackAudio.onerror = (e) => {
+      console.error('Audio playback error:', e);
       URL.revokeObjectURL(audioURL);
       playNextFeedback();
     };
@@ -744,6 +765,7 @@ async function playNextFeedback() {
     await feedbackAudio.play();
   } catch (err) {
     console.error('Feedback speech error:', err);
+    console.error('Full error details:', err.stack);
     playNextFeedback();
   }
 }
@@ -828,8 +850,11 @@ async function initModels() {
     announceStatus('Loading text to speech system...');
     
     await loadOrt();
-    const piperModule = await import('https://cdn.jsdelivr.net/gh/khushwant18/piper-test.github.io@main/resources/piper.js');
-    piperTTS = piperModule; // Store the module
+    const piperModule = await import('https://cdn.jsdelivr.net/gh/khushwant18/piper-test@main/resources/piper.js');
+    
+    // Check if it's a default export or named export
+    console.log('Piper module:', piperModule);
+    piperTTS = piperModule.default || piperModule; // ← FIX: Try default export first
     
     const MODEL_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx';
     const CONFIG_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx.json';
@@ -847,7 +872,8 @@ async function initModels() {
       throw new Error('TTS test failed - invalid blob');
     }
 
-    announceStatus('System ready. Press Space to start voice input or type your question.', true);
+    // Don't speak during initialization to avoid the race condition
+    announceStatus('System ready. Press Space to start voice input or type your question.', false); // ← CHANGE: false = don't speak
     voiceButton.disabled = false;
     textInput.disabled = false;
     textSubmit.disabled = false;
@@ -857,7 +883,7 @@ async function initModels() {
     announceStatus('Error loading models. Please refresh the page.');
   }
 }
-
+  
 async function setupVAD() {
   try {
     announceStatus('Requesting microphone access...', true);
