@@ -778,7 +778,7 @@ async function loadOrt() {
 async function loadBM25Index() {
   try {
     announceStatus('Loading book index...');
-    const response = await fetch('bm25_index.json');
+    const response = await fetch('NCERT6th.json');
     const data = await response.json();
     bm25Index = data.index;
     bm25Documents = data.documents;
@@ -1087,15 +1087,11 @@ async function processText(text) {
       sourceInfo.textContent = '';
       responseBox.classList.remove('hidden');
       
-      // announceStatus('Here is your answer.', true);
       await waitForFeedback();
       
       const wavBlob = await piperTTS.textToWavAudio(noResultMessage, 0, 0.667, 1.0, 0.8);
-      const audioURL = URL.createObjectURL(wavBlob);  // ← ADD THIS LINE HERE
+      const audioURL = URL.createObjectURL(wavBlob);
       audioEl.src = audioURL;
-
-
-      audioEl.src = URL.createObjectURL(wavBlob);
       audioEl.style.display = 'block';
       audioEl.playbackRate = parseFloat(speechRateSlider.value);
       
@@ -1108,7 +1104,7 @@ async function processText(text) {
         textSubmit.disabled = false;
       };
 
-      audioEl.onerror = () => {  // ← ADD THIS: Handle errors
+      audioEl.onerror = () => {
         URL.revokeObjectURL(audioURL);
       };
       
@@ -1118,9 +1114,11 @@ async function processText(text) {
     
     console.log(`📚 Found ${searchResults.length} relevant paragraphs`);
     
+    // CHANGED: Include page and paragraph numbers in context
     const context = searchResults.map(r => 
-                                        `From ${r.doc.chapter}: ${r.doc.text}`
-                                      ).join('\n\n');
+      `From ${r.doc.chapter}, Page ${r.doc.page}, Paragraph ${r.doc.paragraph}: ${r.doc.text}`
+    ).join('\n\n');
+    
     const topResult = searchResults[0].doc;
     
     processedLength = 0;
@@ -1136,18 +1134,19 @@ async function processText(text) {
     await waitForFeedback();
     console.log(`context given ${context}`)
 
-    const prompt = `Based on the following information from the book, answer the question concisely in 2-3 sentences and mention chapter name in the end from which answer was formed.
+    // CHANGED: Updated prompt to include location information
+    const prompt = `Based on the following information from the book, answer the question concisely in 2-3 sentences. After your answer, mention where this information was found by saying "This information is from [chapter name], page [number], paragraph [number]."
 
 Context from book: ${context}
 
 Question: ${text}
 
-Answer naturally and mention the chapter if relevant.`;
+Answer naturally and always end by stating the source location (chapter, page, and paragraph number).`;
 
     const messages = [
       { 
         role: "system", 
-        content: "You are a helpful assistant for visually impaired users. NEVER suggest looking at anything or visual verification. NEVER use phrases like 'look at', 'see', 'view', or 'watch'. Always provide audio-friendly, concise answers in 2-3 clear sentences based on the book context provided. Speak naturally and avoid technical jargon." 
+        content: "You are a helpful assistant for visually impaired users. NEVER suggest looking at anything or visual verification. NEVER use phrases like 'look at', 'see', 'view', or 'watch'. Always provide audio-friendly, concise answers in 2-3 clear sentences based on the book context provided. ALWAYS end your response by stating the chapter name, page number, and paragraph number where the information was found. Speak naturally and avoid technical jargon." 
       },
       { role: "user", content: prompt }
     ];
@@ -1162,7 +1161,7 @@ Answer naturally and mention the chapter if relevant.`;
     });
 
     await llmPipeline(messages, { 
-      max_new_tokens: 100,
+      max_new_tokens: 150,  // CHANGED: Increased to allow for location mention
       streamer: streamer
     });
     
@@ -1173,10 +1172,11 @@ Answer naturally and mention the chapter if relevant.`;
       }
     }
     
-    sourceInfo.textContent = `Source: ${topResult.chapter}, Page ${topResult.page}`;
+    // CHANGED: Display all three pieces of information
+    sourceInfo.textContent = `Source: ${topResult.chapter}, Page ${topResult.page}, Paragraph ${topResult.paragraph}`;
     console.log(`🤖 AI Response: "${currentResponse}"`);
+    console.log(`📍 Source: ${topResult.chapter}, Page ${topResult.page}, Paragraph ${topResult.paragraph}`);
     
-    // announceStatus('Here is your answer.', true);
     await waitForFeedback();
     
     const waitForAudioComplete = setInterval(() => {
