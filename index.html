@@ -566,7 +566,7 @@ audio {
 
   <header>
     <h1>NCERT Science Learning Assistant</h1>
-    <p class="subtitle">Your AI-powered study companion for Class 6 Science</p>
+    <p class="subtitle">Your AI-powered study companion for Science</p>
   </header>
 
   <main id="main-content">
@@ -594,6 +594,12 @@ audio {
       <div class="class-grid" role="list" aria-label="Select your class">
         <button id="class6Button" class="class-button" aria-label="Class 6 Science. Click to start">
           <span>Class 6 Science</span>
+        </button>
+      </div>
+
+      <div class="class-grid" role="list" aria-label="Select your class">
+        <button id="class7Button" class="class-button" aria-label="Class 7 Science. Click to start">
+          <span>Class 7 Science</span>
         </button>
       </div>
     </div>
@@ -740,18 +746,30 @@ Module.locateFile = function(path) {
 <script type="module">
 document.addEventListener('DOMContentLoaded', function() {
   const class6Button = document.getElementById('class6Button');
+  const class7Button = document.getElementById('class7Button');
   const classSelectionPage = document.getElementById('classSelectionPage');
   const assistantPage = document.getElementById('assistantPage');
   const backToClassButton = document.getElementById('backToClassButton');
   const breadcrumb = document.getElementById('breadcrumb');
   const breadcrumbText = document.getElementById('breadcrumbText');
   
-  function showAssistantPage() {
-    classSelectionPage.classList.remove('active');
-    assistantPage.classList.add('active');
-    breadcrumb.classList.remove('hidden');
-    breadcrumbText.textContent = 'Home → Class 6 Science';
-  }
+  async function showAssistantPage6() {
+  selectedBookJSON = 'NCERT6thbook.json'; // Set the JSON file
+  classSelectionPage.classList.remove('active');
+  assistantPage.classList.add('active');
+  breadcrumb.classList.remove('hidden');
+  breadcrumbText.textContent = 'Home → Class 6 Science';
+  await initModels(); // Await the async function
+}
+
+async function showAssistantPage7() {
+  selectedBookJSON = 'NCERT7thbook.json'; // Set the JSON file
+  classSelectionPage.classList.remove('active');
+  assistantPage.classList.add('active');
+  breadcrumb.classList.remove('hidden');
+  breadcrumbText.textContent = 'Home → Class 7 Science';
+  await initModels(); // Await the async function
+}
   
   function showClassSelectionPage() {
     assistantPage.classList.remove('active');
@@ -760,7 +778,11 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   if (class6Button) {
-    class6Button.addEventListener('click', showAssistantPage);
+    class6Button.addEventListener('click', showAssistantPage6);
+  }
+
+  if (class7Button) {
+    class7Button.addEventListener('click', showAssistantPage7);
   }
   
   if (backToClassButton) {
@@ -893,6 +915,7 @@ let isPlayingQueue = false;
   // Global variables to hold the engine and raw docs
 let engine = null;
 let documents = [];
+let selectedBookJSON = null; 
 
 
 async function waitForFeedback() {
@@ -1176,7 +1199,8 @@ async function initModels() {
     });
 
     announceStatus('Loading book index...');
-    await loadBM25Index();
+    const jsonFile = selectedBookJSON;
+    await loadBM25Index(jsonFile);
 
     announceStatus('Loading text to speech system...');
     
@@ -1706,7 +1730,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-initModels();
+// initModels();
 </script>
 </body>
 </html>
