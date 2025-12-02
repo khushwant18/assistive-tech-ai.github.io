@@ -770,6 +770,10 @@ document.addEventListener('DOMContentLoaded', function() {
 // import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6/dist/transformers.min.js';
 import { pipeline, env, TextStreamer } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3/dist/transformers.min.js';
 
+// import {BM25} from 'https://cdn.jsdelivr.net/npm/@ckirby/wink-bm25-text-search@3.3.0/src/wink-bm25-text-search.min.js';
+import ckirbywinkBm25TextSearch from 'https://cdn.jsdelivr.net/npm/@ckirby/wink-bm25-text-search@3.3.0/+esm';
+
+
 env.allowLocalModels = false;
 // Console override setup
 const consoleOutput = document.getElementById('consoleOutput');
@@ -854,6 +858,9 @@ const speechRateSlider = document.getElementById('speechRate');
 const rateValue = document.getElementById('rateValue');
 const textInput = document.getElementById('textInput');
 const textSubmit = document.getElementById('textSubmit');
+// const bm25 = require('wink-bm25-text-search');
+// const fs = require('fs');
+  
 
 let sttPipeline = null;
 let llmPipeline = null;
@@ -882,6 +889,11 @@ let isPlayingFeedback = false;
 let processedLength = 0;
 let audioQueue = [];
 let isPlayingQueue = false;
+
+  // Global variables to hold the engine and raw docs
+let engine = null;
+let documents = [];
+
 
 async function waitForFeedback() {
   return new Promise(resolve => {
@@ -971,51 +983,182 @@ async function loadOrt() {
   });
 }
 
-async function loadBM25Index() {
-  try {
-    announceStatus('Loading book index...');
-    const response = await fetch('NCERT6th.json');
-    const data = await response.json();
-    bm25Index = data.index;
-    bm25Documents = data.documents;
-    console.log(`📚 Loaded ${bm25Documents.length} paragraphs from index`);
-  } catch (err) {
-    console.error('Error loading BM25 index:', err);
-    throw new Error('Failed to load book index');
-  }
+// async function loadBM25Index() {
+//   try {
+//     announceStatus('Loading book index...');
+//     const response = await fetch('NCERT6th.json');
+//     const data = await response.json();
+//     bm25Index = data.index;
+//     bm25Documents = data.documents;
+//     console.log(`📚 Loaded ${bm25Documents.length} paragraphs from index`);
+//   } catch (err) {
+//     console.error('Error loading BM25 index:', err);
+//     throw new Error('Failed to load book index');
+//   }
+// }
+
+async function loadBM25Index(jsonFilePath = 'NCERT6thbook.json') {
+    // The prepareText function MUST be defined again here or globally
+    // as it is not saved in the JSON index.
+    function prepareText(text) {
+        return text.toLowerCase()
+            .replace(/[^\w\s]/g, ' ')
+            .split(/\s+/)
+            .filter(w => w.length > 2);
+    }
+
+    try {
+        // Use the modern API (if you have one) or console.log
+        console.log('Loading book index...'); 
+        
+        // 1. Fetch the data
+        const response = await fetch(jsonFilePath);
+        const data = await response.json();
+        
+        // 2. Store the raw documents array (using the 'documents' global from your search_handler.js)
+        documents = data.documents;
+
+        // 3. Initialize the BM25 engine (using the 'engine' global from your search_handler.js)
+        engine = ckirbywinkBm25TextSearch();
+        engine.defineConfig({
+            fldWeights: { text: 1, chapter: 2 }
+        });
+        engine.definePrepTasks([prepareText]);
+
+        // 4. Import the saved index data to restore the BM25 model
+        engine.importJSON(data.index);
+//         console.log("Doc 54:", documents[54]);
+// console.log("Chapter:", documents[54].chapter);
+// console.log("Page:", documents[54].page);
+// console.log("Paragraph:", documents[54].paragraph);
+        
+        
+        console.log(`📚 Loaded ${documents.length} paragraphs and initialized BM25 engine.`);
+    } catch (err) {
+        console.error('Error loading BM25 index:', err);
+        throw new Error('Failed to load book index');
+    }
 }
 
-function prepareText(text) {
-  return text.toLowerCase()
-    .replace(/[^\w\s]/g, ' ')
-    .split(/\s+/)
-    .filter(w => w.length > 2);
-}
+// function prepareText(text) {
+//   return text.toLowerCase()
+//     .replace(/[^\w\s]/g, ' ')
+//     .split(/\s+/)
+//     .filter(w => w.length > 2);
+// }
 
-function bm25Search(query, topK = 3) {
-  const queryTokens = prepareText(query);
-  const scores = [];
+// function bm25Search(query, topK = 3) {
+//   const queryTokens = prepareText(query);
+//   const scores = [];
   
-  for (let i = 0; i < bm25Documents.length; i++) {
-    const doc = bm25Documents[i];
-    const docTokens = prepareText(doc.text);
+//   for (let i = 0; i < bm25Documents.length; i++) {
+//     const doc = bm25Documents[i];
+//     const docTokens = prepareText(doc.text);
     
-    let score = 0;
-    for (const token of queryTokens) {
-      if (docTokens.includes(token)) {
-        score += 1;
-      }
+//     let score = 0;
+//     for (const token of queryTokens) {
+//       if (docTokens.includes(token)) {
+//         score += 1;
+//       }
+//     }
+    
+//     if (score > 0) {
+//       scores.push({ doc, score, index: i });
+//     }
+//   }
+  
+//   scores.sort((a, b) => b.score - a.score);
+//   return scores.slice(0, topK);
+// }
+function locationSearch(query) {
+    const chapMatch = query.match(/ch(?:apter)?\s*(\d+)/i);
+    const pageMatch = query.match(/p(?:age)?\s*(\d+)/i);
+    const paraMatch = query.match(/para(?:graph)?\s*(\d+)/i);
+
+    if (!chapMatch && !pageMatch) return null; // Not a location query
+
+    const targetChap = chapMatch ? parseInt(chapMatch[1]) : null;
+    const targetPage = pageMatch ? parseInt(pageMatch[1]) : null;
+    const targetPara = paraMatch ? parseInt(paraMatch[1]) : null;
+
+    console.log(`📍 Detected Location Query: Ch: ${targetChap}, Pg: ${targetPage}, Para: ${targetPara}`);
+
+    const matches = documents.filter(doc => {
+        // Extract chapter number from doc.chapter (e.g., "Chapter 1: Title" → 1)
+        const docChapNum = doc.chapter.match(/(\d+)/);
+        const docChapNumber = docChapNum ? parseInt(docChapNum[1]) : null;
+
+        // Check Chapter match
+        if (targetChap !== null && docChapNumber !== targetChap) {
+            return false;
+        }
+
+        // Check Page match (absolute page number across all chapters)
+        if (targetPage !== null && doc.page !== targetPage) {
+            return false;
+        }
+
+        // Check Paragraph match (resets per page)
+        if (targetPara !== null && doc.paragraph !== targetPara) {
+            return false;
+        }
+
+        return true;
+    });
+
+    console.log(`Found ${matches.length} matches`);
+
+    if (matches.length === 0) return null;
+
+    // If multiple matches (e.g., "chapter 3 paragraph 3" returns multiple pages),
+    // return only the FIRST occurrence (earliest page)
+    if (matches.length > 1 && targetPara !== null && targetPage === null) {
+        const firstMatch = matches.reduce((earliest, current) => 
+            current.page < earliest.page ? current : earliest
+        );
+        console.log(`Returning first occurrence: Page ${firstMatch.page}`);
+        return { type: 'exact', results: [firstMatch] };
+    }
+
+    return { type: 'exact', results: matches };
+}
+
+// 3. INTERNAL BM25 SEARCH (formerly semanticSearch)
+async function _bm25InternalSearch(query, topK = 5) {
+    const results = await engine.search(query, topK);
+
+    return {
+        type: 'bm25',
+        results: results.map(([docId, score]) => ({
+            ...documents[docId],
+            score: score.toFixed(4),
+        }))
+    };
+}
+
+
+// 4. THE MAIN SEARCH FUNCTION (reusing your preferred name)
+async function bm25Search(query, topK = 5) {
+    if (!engine) {
+        console.error("Search engine not loaded. Please call loadSearchEngine first.");
+        return { type: 'error', results: [] };
     }
     
-    if (score > 0) {
-      scores.push({ doc, score, index: i });
+    // 1. Try location search first
+    const locationMatches = locationSearch(query);
+
+    console.log("locationSearch check .. ");
+    console.log(locationMatches);
+    
+    if (locationMatches) {
+        return locationMatches;
     }
-  }
-  
-  scores.sort((a, b) => b.score - a.score);
-  return scores.slice(0, topK);
+
+    // 2. Fallback to BM25 semantic search
+    return await _bm25InternalSearch(query, topK); 
 }
 
+  
 async function initModels() {
   try {
     announceStatus('Loading speech recognition system...');
@@ -1274,15 +1417,17 @@ async function processText(text) {
     announceStatus('Searching the book for relevant information...', true);
     await waitForFeedback();
     
-    const searchResults = bm25Search(text, 3);
+    const searchResults = await bm25Search(text, 3);
+    // console.log("searchResults check..");
+    // console.log(searchResults);
     
-    if (searchResults.length === 0) {
+    if (!searchResults.results || searchResults.results.length === 0) {
       const noResultMessage = 'I could not find relevant information in the book for your question.';
       currentResponse = noResultMessage;
       responseText.textContent = noResultMessage;
       sourceInfo.textContent = '';
       responseBox.classList.remove('hidden');
-      
+
       await waitForFeedback();
       
       const wavBlob = await piperTTS.textToWavAudio(noResultMessage, 0, 0.667, 1.0, 0.8);
@@ -1308,14 +1453,13 @@ async function processText(text) {
       return;
     }
     
-    console.log(`📚 Found ${searchResults.length} relevant paragraphs`);
+    console.log(`📚 Found ${searchResults.results.length} relevant paragraphs`);
     
-    // CHANGED: Include page and paragraph numbers in context
-    const context = searchResults.map(r => 
-      `From ${r.doc.chapter}, Page ${r.doc.page}, Paragraph ${r.doc.paragraph}: ${r.doc.text}`
+    const context = searchResults.results.map(r => 
+      `From ${r.chapter}, Page ${r.page}, Paragraph ${r.paragraph}: ${r.text}`
     ).join('\n\n');
     
-    const topResult = searchResults[0].doc;
+    const topResult = searchResults.results[0];
     
     processedLength = 0;
     audioQueue = [];
