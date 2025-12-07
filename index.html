@@ -1406,7 +1406,7 @@ async function processAudio(audioBlob) {
     const result = await sttPipeline(resampledData);
     const text = result.text.trim();
 
-    if (!text || text === '[BLANK_AUDIO]' || text.includes('BLANK')) {
+    if (!text || text === '[BLANK_AUDIO]' || text.includes('BLANK') || text === '[INAUDIBLE]') {
       announceStatus('No speech detected. Please try again.', true);
       await waitForFeedback();
       isProcessing = false;
@@ -1525,7 +1525,7 @@ Answer naturally and always end by stating the source location (chapter, page, a
     });
 
     await llmPipeline(messages, { 
-      max_new_tokens: 150,  // CHANGED: Increased to allow for location mention
+      max_new_tokens: 250,  // CHANGED: Increased to allow for location mention
       streamer: streamer
     });
     
