@@ -911,6 +911,7 @@ let isPlayingFeedback = false;
 let processedLength = 0;
 let audioQueue = [];
 let isPlayingQueue = false;
+let llmDevice = 'wasm';
 
   // Global variables to hold the engine and raw docs
 let engine = null;
@@ -1192,10 +1193,22 @@ async function initModels() {
     });
 
     announceStatus('Loading language model...');
+
+    try {
+      if (navigator.gpu) {
+        const adapter = await navigator.gpu.requestAdapter();
+        if (adapter) {
+          llmDevice = 'webgpu';
+          console.log('✅ WebGPU available - using GPU');
+        }
+      }
+    } catch (e) {
+      console.log('⚠️ WebGPU not available - using CPU');
+    }
     
     llmPipeline = await pipeline('text-generation', 'onnx-community/LFM2-350M-ONNX', {
       dtype: 'q4f16',
-      device: 'webgpu'
+      device: llmDevice
     });
 
     announceStatus('Loading book index...');
