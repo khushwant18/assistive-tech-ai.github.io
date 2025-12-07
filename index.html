@@ -1406,7 +1406,7 @@ async function processAudio(audioBlob) {
     const result = await sttPipeline(resampledData);
     const text = result.text.trim();
 
-    if (!text) {
+    if (!text || text === '[BLANK_AUDIO]' || text.includes('BLANK')) {
       announceStatus('No speech detected. Please try again.', true);
       await waitForFeedback();
       isProcessing = false;
